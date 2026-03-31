@@ -6,5 +6,5 @@ You can install the main version of seamoveR from [GitHub](https://github.com/) 
 
 ```{r}
 install.packages("devtools")
-devtools::install_github("ecc-wrd-opp/seamoveR")
+devtools::install_github("krstudholme/seamoveR")
 ```
