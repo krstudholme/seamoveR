@@ -28,6 +28,7 @@
 #'  the location specified.
 #' @export
 #' @importFrom utils read.csv read.table write.csv
+#' @importFrom dplyr across where everything
 formatPathtrack <- function(data.dir, outliers00 = T, out.dir = NULL, spcd = NULL, site = NULL) {
 
   ## Format positional data ##
