@@ -14,5 +14,5 @@ RoxygenNote: 7.3.2
 Imports: 
     dplyr,
     stringr
-URL: https://github.com/eccc-wrd-opp/seamoveR
-BugReports: https://github.com/eccc-wrd-opp/seamoveR/issues
+URL: https://github.com/krstudholme/seamoveR
+BugReports: https://github.com/krstudholme/seamoveR/issues
