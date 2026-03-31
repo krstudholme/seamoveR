@@ -18,10 +18,12 @@
 #'  locations when tag is programmed to stop collecting GPS fixes when in range of
 #'  the base station. Required if this setting was used.
 #'
-#' @details This function compiles the data obtained from Ecotone GPS-UHF tracking
-#'  devices (.csv file(s), derived from a .txt base station file using program
-#'  NGAnalyzer) into a single file for positional data and a file for time-depth data.
-#'  Files are formatted to comply with Movebank's required field names and units.
+#' @details This function is intended to compile and format Ecotone GPS-UHF tracking
+#'  data from multiple birds tracked from a single site. It processes the raw position
+#'  files (.csv file(s) produced from an Ecotone base station file (.txt) using the
+#'  NGAnalyzer program) into a single file for positional data and a single file for
+#'  time-depth data. Files are formatted to comply with Movebank's required field
+#'  names and units.
 #'
 #' @return Returns an single object if only positional data are present, or a list
 #'  of two objects if both positional and time-depth data are present. If out.dir,
@@ -29,7 +31,8 @@
 #'  the location specified.
 #' @export
 #' @importFrom utils read.csv read.table write.csv
-formatEcotone <- function(data.dir, outliers00 = T, out.dir = NULL, spcd = NULL, site = NULL, deployLon = NULL, deployLat = NULL) {
+#' @importFrom dplyr across where everything
+formatEcotone <- function(data.dir, out.dir = NULL, spcd = NULL, site = NULL, deployLon = NULL, deployLat = NULL) {
 
   ## Format positional data ##
 
@@ -41,9 +44,13 @@ formatEcotone <- function(data.dir, outliers00 = T, out.dir = NULL, spcd = NULL,
     dplyr::distinct() |>
     dplyr::mutate(across(where(is.character), ~ dplyr::na_if(., "")))
 
-  ##? ADD STOP if In.range column has data and deployLat and Lon were not provided! ##
+  # If tag In.range has values and deployLon or deployLat were not provided (NULL), stop
 
-  # Make positional dataset
+  if (!all(is.na(dat$In.range)) & (is.null(deployLon) | is.null(deployLat))) {
+    stop("Error: Must provide deployLon and deployLat when tag is programmed to turn off in range of the base station.")
+  }
+
+  # Make positional dataset (no dive data)
 
   pos <- dat |>
     dplyr::filter(!is.na(Longitude) | !is.na(In.range) | !is.na(No.GPS...timeout) | !is.na(No.GPS...diving))
@@ -66,7 +73,8 @@ formatEcotone <- function(data.dir, outliers00 = T, out.dir = NULL, spcd = NULL,
   # Rename columns and format for Movebank
   # Filter duplicates, sort
   # Didn't keep Additive.Vincentys.Distance.Km., Travel.Speed.Km.h.
-  ##? Experimenting with keeping Temperature and PA (Temperature only occurs with coordinates, unlike Temp_sens) ##
+  # Experimenting with keeping Temperature and PA
+  # (Temperature only occurs with coordinates, unlike Temp_sens, PA is Atmospheric and occurs with all lat/lon)
 
   pos <- pos |>
     dplyr::mutate(`sensor-type` = "GPS",
@@ -103,15 +111,14 @@ formatEcotone <- function(data.dir, outliers00 = T, out.dir = NULL, spcd = NULL,
   ## Format TDR data if present ##
 
   # Occurs within same file as pos data for Ecotone
-  ##? Check for Depth or Div.down? Not sure if dive data can exist without there also being depth data ##
 
-  if(length(unique(dat$Depth > 1))){
+  if(!all(is.na(dat$Depth)) | !all(is.na(dat$Div.down))){
 
     # Make TDR dataset
     # Rename columns and format for Movebank
 
     tdr <- dat |>
-      dplyr::filter(dplyr::if_any(c(Div.up, Div.down, PH), ~ !is.na(.))) |>
+      dplyr::filter(dplyr::if_any(c(Div.up, Div.down, PH, Depth), ~ !is.na(.))) |>
       dplyr::select(where(~ !all(is.na(.)))) |>
       dplyr::mutate(`barometric-pressure` = ifelse(!is.na(PH), PH, PA), # hPa (mbar)
                     comments = ifelse(!is.na(PH), "hydrostatic pressure",
@@ -128,13 +135,14 @@ formatEcotone <- function(data.dir, outliers00 = T, out.dir = NULL, spcd = NULL,
                     comments) |>
       dplyr::arrange(`tag-id`, timestamp)
 
-    ##? Set atmospheric pressure measurements (Div.up records) to depth = 0 instead of NA?##
-
     # Collapse rows with identical timestamps
+
     tdr <- tdr |>
       dplyr::group_by(`sensor-type`, `tag-id`, timestamp) |>
       dplyr::summarise(across(everything(), ~ dplyr::first(na.omit(.))), .groups = "drop")
 
+    ##? Set atmospheric pressure measurements (Div.up records) to depth = 0 instead of NA? Does Ecotone have preferred conversion? ##
+    ##? Or eliminate Div.up records all together? Would lose PA and temp_sens record. Still retain time of Div.up through dive duration. ##
 
     # Save .csv if required info is provided
 
