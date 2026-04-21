@@ -21,3 +21,7 @@
 # Temporary files created by R markdown
 *.utf8.md
 *.knit.md
+
+# folders for testing
+testdata/
+notes/
