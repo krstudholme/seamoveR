@@ -19,10 +19,10 @@
 #'  them from the Movebank map but retains them in the dataset.
 #'
 #'  Note: For users working with burrow nesting species, you may wish to perform
-#'  additional data processing to identify where 0,0 locations likely represent
+#'  additional data processing to identify where missing locations likely represent
 #'  burrow use. If you do this, you would change 'location-lon' and 'location-lat'
-#'  to the colony coordinates, add a description of the change you made and why in
-#'  the 'comments' field, and change 'import-marked-outlier' to FALSE.
+#'  to the deployment location, change the 'comments' field to a description of the
+#'  change you made and why, and change 'import-marked-outlier' to FALSE.
 #'
 #' @return Returns an single object if only positional data are present, or a list
 #'  of two objects if both positional and time-depth data are present. If out.dir,
@@ -64,7 +64,7 @@ formatPathtrackGPS <- function(data.dir, out.dir = NULL, spcd = NULL, site = NUL
 
   pos <- do.call(dplyr::bind_rows, datalist)
 
-  print(paste('Loaded', nfile, 'positional data files from', length(unique(pos$tag)), "tags."))
+  print(paste('Loaded', nfile, 'positional data file(s) from', length(unique(pos$tag)), "tag(s)."))
 
   # Remove rownames
 
@@ -91,7 +91,8 @@ formatPathtrackGPS <- function(data.dir, out.dir = NULL, spcd = NULL, site = NUL
   pos <- pos |>
     dplyr::mutate(`sensor-type` = "GPS",
                   timestamp = paste(paste(year, sprintf("%02d", month), sprintf("%02d", day), sep = "-"), paste(sprintf("%02d", hour), sprintf("%02d", minute), sprintf("%02d", second), sep = ":")),
-                   `gps-fix-type` = "3D",
+                   `gps-fix-type-raw` = ifelse(`location-long` == 0 & `location-lat` == 0, "1D", #1D = no fix
+                                          ifelse(!is.na(altitude), "3D", "2D")),
                    `gps:satellite-count` = satellites,
                    `height-above-ellipsoid` = altitude, # meters
                    `location-lat` = lat,
