@@ -15,18 +15,20 @@
 #' @details This function compiles the files obtained from Pathtrack GPS tracking
 #'  devices (.pos positional files and .txt TDR files) into a single file for
 #'  each data type, then reformats these files to comply with Movebank's required
-#'  field names and units.  All 0,0 coordinates are labelled as outliers which hides
-#'  them from the Movebank map but retains them in the dataset.
+#'  field names and units.
+#'
+#'  All missing (0,0) locations are labelled as outliers which hides them from the Movebank
+#'  map but retains them in the dataset.
 #'
 #'  Note: For users working with burrow nesting species, you may wish to perform
-#'  additional data processing to identify where 0,0 locations likely represent
+#'  additional data processing to identify where missing locations likely represent
 #'  burrow use. If you do this, you would change 'location-lon' and 'location-lat'
-#'  to the colony coordinates, add a description of the change you made and why in
-#'  the 'comments' field, and change 'import-marked-outlier' to FALSE.
+#'  to the colony coordinates, change the 'comments' field to a description of the
+#'  change you made and why, and change 'import-marked-outlier' to FALSE.
 #'
 #' @return Returns an single object if only positional data are present, or a list
 #'  of two objects if both positional and time-depth data are present. If out.dir,
-#'  spcd, and site are specified, the function will save Movebank-formatted csv file(s) to
+#'  spcd, and site are specified, the function will save Movebank-formatted .csv file(s) to
 #'  the location specified.
 #' @export
 #' @importFrom utils read.csv read.table write.csv
