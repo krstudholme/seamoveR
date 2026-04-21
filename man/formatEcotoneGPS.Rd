@@ -41,7 +41,7 @@ the base station. Required if this setting was used.}
 \value{
 Returns an single object if only positional data are present, or a list
 of two objects if both positional and time-depth data are present. If out.dir,
-spcd, and site are specified, the function will save Movebank-formatted csv file(s) to
+spcd, and site are specified, the function will save Movebank-formatted .csv file(s) to
 the location specified.
 }
 \description{
@@ -54,6 +54,11 @@ files (.csv file(s) produced from an Ecotone base station file (.txt) using the
 NGAnalyzer program) into a single file for positional data and a single file for
 time-depth data. Files are formatted to comply with Movebank's required field
 names and units.
+
+When missing locations (NA,NA) occur in range of the base station, this function
+uses the deployment coordinates provided by the user ('deployLon', 'deployLat').
+All other missing locations are labelled as outliers which hides them from the Movebank
+map but retains them in the dataset.
 
 Note: For users working with burrow nesting species, you may wish to perform
 additional data processing to identify where missing locations likely represent
