@@ -39,8 +39,8 @@ field names and units.  All 0,0 coordinates are labelled as outliers which hides
 them from the Movebank map but retains them in the dataset.
 
 Note: For users working with burrow nesting species, you may wish to perform
-additional data processing to identify where 0,0 locations likely represent
+additional data processing to identify where missing locations likely represent
 burrow use. If you do this, you would change 'location-lon' and 'location-lat'
-to the colony coordinates, add a description of the change you made and why in
-the 'comments' field, and change 'import-marked-outlier' to FALSE.
+to the deployment location, change the 'comments' field to a description of the
+change you made and why, and change 'import-marked-outlier' to FALSE.
 }
