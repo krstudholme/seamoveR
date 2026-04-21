@@ -31,7 +31,7 @@
 #' @export
 #' @importFrom utils read.csv read.table write.csv
 #' @importFrom dplyr across where everything
-formatPathtrack <- function(data.dir, out.dir = NULL, spcd = NULL, site = NULL) {
+formatPathtrackGPS <- function(data.dir, out.dir = NULL, spcd = NULL, site = NULL) {
 
   ## Format positional data ##
 
@@ -43,6 +43,7 @@ formatPathtrack <- function(data.dir, out.dir = NULL, spcd = NULL, site = NULL) 
   # Import raw files, add column for tag name
 
   datalist <- list()
+  nfile <- 0
 
   for(i in files$filepath){
 
@@ -55,7 +56,7 @@ formatPathtrack <- function(data.dir, out.dir = NULL, spcd = NULL, site = NULL) 
 
     datalist[[i]] <- tag.file
 
-    print(i)
+    nfile <- nfile + 1
 
   }
 
@@ -63,11 +64,13 @@ formatPathtrack <- function(data.dir, out.dir = NULL, spcd = NULL, site = NULL) 
 
   pos <- do.call(dplyr::bind_rows, datalist)
 
+  print(paste('Loaded', nfile, 'positional data files from', length(unique(pos$tag)), "tags."))
+
   # Remove rownames
 
   rownames(pos) <- NULL
 
-  # Handle pathtrack input files with only 14 columns
+  # Handle cases when all Pathtrack input files have only 14 columns (plus new tag column)
 
   if(ncol(pos)==15){
 
@@ -119,7 +122,7 @@ formatPathtrack <- function(data.dir, out.dir = NULL, spcd = NULL, site = NULL) 
   }
 
 
-    ## Format TDR data if present ##
+  ## Format TDR data if present ##
 
   # Create a table of the 'Press.txt' files and tag IDs
 
@@ -131,6 +134,7 @@ formatPathtrack <- function(data.dir, out.dir = NULL, spcd = NULL, site = NULL) 
     # Import raw files, add column for tag name
 
     datalist <- list()
+    nfile <- 0
 
     for(i in files$filepath){
 
@@ -143,12 +147,15 @@ formatPathtrack <- function(data.dir, out.dir = NULL, spcd = NULL, site = NULL) 
 
       datalist[[i]] <- tag.file
 
-      print(i)
+      nfile <- nfile + 1
+
     }
 
     # Combine
 
     tdr <- do.call(dplyr::bind_rows, datalist)
+
+    print(paste('Loaded', nfile, 'TDR data file(s) from', length(unique(tdr$tag)), "tag(s)."))
 
     # Remove rownames
 
