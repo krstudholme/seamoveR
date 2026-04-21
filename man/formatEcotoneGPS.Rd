@@ -49,9 +49,15 @@ Prepare Ecotone GPS-UHF(+TDR) data for import into Movebank
 }
 \details{
 This function is intended to compile and format Ecotone GPS-UHF tracking
-data from multiple birds tracked from a single site. It processes the raw position
+data from multiple birds tracked from a single site. It processes the raw data
 files (.csv file(s) produced from an Ecotone base station file (.txt) using the
 NGAnalyzer program) into a single file for positional data and a single file for
 time-depth data. Files are formatted to comply with Movebank's required field
 names and units.
+
+Note: For users working with burrow nesting species, you may wish to perform
+additional data processing to identify where missing locations likely represent
+burrow use. If you do this, you would change 'location-lon' and 'location-lat'
+to the deployment location, change the 'comments' field to a description of the
+change you made and why, and change 'import-marked-outlier' to FALSE.
 }

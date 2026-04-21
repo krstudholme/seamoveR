@@ -20,11 +20,17 @@
 #'  the base station. Required if this setting was used.
 #'
 #' @details This function is intended to compile and format Ecotone GPS-UHF tracking
-#'  data from multiple birds tracked from a single site. It processes the raw position
+#'  data from multiple birds tracked from a single site. It processes the raw data
 #'  files (.csv file(s) produced from an Ecotone base station file (.txt) using the
 #'  NGAnalyzer program) into a single file for positional data and a single file for
 #'  time-depth data. Files are formatted to comply with Movebank's required field
 #'  names and units.
+#'
+#'  Note: For users working with burrow nesting species, you may wish to perform
+#'  additional data processing to identify where missing locations likely represent
+#'  burrow use. If you do this, you would change 'location-lon' and 'location-lat'
+#'  to the deployment location, change the 'comments' field to a description of the
+#'  change you made and why, and change 'import-marked-outlier' to FALSE.
 #'
 #' @return Returns an single object if only positional data are present, or a list
 #'  of two objects if both positional and time-depth data are present. If out.dir,
@@ -45,6 +51,8 @@ formatEcotoneGPS <- function(data.dir, out.dir = NULL, spcd = NULL, site = NULL,
     dplyr::distinct() |>
     dplyr::mutate(across(where(is.character), ~ dplyr::na_if(., "")))
 
+  print(paste('Loaded', length(files), 'data file(s) from', length(unique(dat$Logger.ID)), "tag(s)."))
+
   # If tag In.range has values and deployLon or deployLat were not provided (NULL), stop
 
   if (!all(is.na(dat$In.range)) & (is.null(deployLon) | is.null(deployLat))) {
@@ -59,11 +67,11 @@ formatEcotoneGPS <- function(data.dir, out.dir = NULL, spcd = NULL, site = NULL,
   # Handle NA,NA locations
   # If 'in-range' column has value, replace NA,NA location with deploy location
   # Change remaining NA,NA positions to 0,0 and label ‘import-marked-outlier’ == TRUE.
-  # Use the 'outlier-comment' field to say what you did.
+  # Use the 'comments' field to say what you did.
 
   pos <- pos |>
     dplyr::mutate(`import-marked-outlier` = ifelse(is.na(Longitude) & is.na(In.range), TRUE, FALSE),
-                  `outlier-comment` = ifelse(!is.na(No.GPS...timeout) , "No GPS, timeout",
+                  `comments` = ifelse(!is.na(No.GPS...timeout), "No GPS, timeout",
                                              ifelse(!is.na(No.GPS...diving), "No GPS, diving",
                                                     ifelse(!is.na(In.range), "In range of base station; changed NA,NA to deployment coordinates", NA))),
                   Longitude = ifelse(!is.na(Longitude), Longitude,
@@ -80,7 +88,7 @@ formatEcotoneGPS <- function(data.dir, out.dir = NULL, spcd = NULL, site = NULL,
   pos <- pos |>
     dplyr::mutate(`sensor-type` = "GPS",
                   timestamp = paste(paste(Year, sprintf("%02d", Month), sprintf("%02d", Day), sep = "-"), paste(sprintf("%02d", Hour), sprintf("%02d", Minute), sprintf("%02d", Second), sep = ":")),
-                  `gps-fix-type` = ifelse(!is.na(No.GPS...timeout) | !is.na(No.GPS...diving) | !is.na(In.range), "no fix",
+                  `gps-fix-type-raw` = ifelse(!is.na(No.GPS...timeout) | !is.na(No.GPS...diving) | !is.na(In.range), "1D", #1D = no fix
                                           ifelse(!is.na(Altitude), "3D", "2D")),
                   `gps:satellite-count` = ifelse(!is.na(No.GPS...timeout), 0, Sat..Count),
                   `gps-time-to-fix` = Searching.time,
@@ -93,10 +101,10 @@ formatEcotoneGPS <- function(data.dir, out.dir = NULL, spcd = NULL, site = NULL,
                   `barometric-pressure` = PA) |>
     dplyr::select('sensor-type', 'tag-id',
                   timestamp, 'location-long', 'location-lat',
-                  'gps-fix-type', 'gps:satellite-count', 'gps-time-to-fix',
+                  'gps-fix-type-raw', 'gps:satellite-count', 'gps-time-to-fix',
                   'ground-speed', 'tag-voltage',
                   'external-temperature', 'barometric-pressure',
-                  'import-marked-outlier', 'outlier-comment') |>
+                  'import-marked-outlier', 'comments') |>
     dplyr::arrange(`tag-id`, timestamp) |>
     dplyr::distinct()
 
@@ -111,7 +119,7 @@ formatEcotoneGPS <- function(data.dir, out.dir = NULL, spcd = NULL, site = NULL,
 
   ## Format TDR data if present ##
 
-  # Occurs within same file as pos data for Ecotone
+  # Occurs within same original file as the pos data
 
   if(!all(is.na(dat$Depth)) | !all(is.na(dat$Div.down))){
 
@@ -124,11 +132,11 @@ formatEcotoneGPS <- function(data.dir, out.dir = NULL, spcd = NULL, site = NULL,
       dplyr::mutate(`barometric-pressure` = ifelse(!is.na(PH), PH, PA), # hPa (mbar)
                     comments = ifelse(!is.na(PH), "hydrostatic pressure",
                                       ifelse(!is.na(PA), "atmospheric pressure", NA)),
+                    `dive-duration` = lubridate::period_to_seconds(lubridate::hms(Diving.duration)),
                     depth = Depth/100, # meters, Ecotone in cm
                     `sensor-type` = "TDR",
                     timestamp = paste(paste(Year, sprintf("%02d", Month), sprintf("%02d", Day), sep = "-"), paste(sprintf("%02d", Hour), sprintf("%02d", Minute), sprintf("%02d", Second), sep = ":"))) |>
-      dplyr::rename(`dive-duration` = Diving.duration,
-                    `external-temperature` = Temp_sens,
+      dplyr::rename(`external-temperature` = Temp_sens,
                     `tag-id` = Logger.ID) |>
       dplyr::select('sensor-type', 'tag-id', timestamp,
                     'dive-duration', 'depth',
@@ -142,8 +150,12 @@ formatEcotoneGPS <- function(data.dir, out.dir = NULL, spcd = NULL, site = NULL,
       dplyr::group_by(`sensor-type`, `tag-id`, timestamp) |>
       dplyr::summarise(across(everything(), ~ dplyr::first(na.omit(.))), .groups = "drop")
 
-    ##? Set atmospheric pressure measurements (Div.up records) to depth = 0 instead of NA? Does Ecotone have preferred conversion? ##
-    ##? Or eliminate Div.up records all together? Would lose PA and temp_sens record. Still retain time of Div.up through dive duration. ##
+    print(paste("TDR data identified for", length(unique(tdr$`tag-id`)), "tag(s)."))
+
+    ## Get missing value warnings for dive-duration and depth in Movebank
+    ## Could remove the Div.Up records (as below) to resolve, lose temp and atmospheric pressure logged at Div.Up
+    tdr <- dplyr::filter(tdr, comments == "hydrostatic pressure") |>
+      dplyr::select(-comments)
 
     # Save .csv if required info is provided
 
