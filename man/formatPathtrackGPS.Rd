@@ -43,6 +43,6 @@ map but retains them in the dataset.
 Note: For users working with burrow nesting species, you may wish to perform
 additional data processing to identify where missing locations likely represent
 burrow use. If you do this, you would change 'location-lon' and 'location-lat'
-to the colony coordinates, change the 'comments' field to a description of the
+to the deployment location, change the 'comments' field to a description of the
 change you made and why, and change 'import-marked-outlier' to FALSE.
 }
