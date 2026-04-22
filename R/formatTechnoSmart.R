@@ -1,35 +1,25 @@
 #' Prepare TechnoSmArt GPS-UHF(+TDR) data for import into Movebank (archival too?)
 #'
-#' @param data.dir Filepath to the directory containing all Ecotone data to be
+#' @param data.dir Filepath to the directory containing all TechnoSmArt data to be
 #'  re-formatted. Data must be in .csv format, the direct (unaltered) result of
-#'  processing raw base station .txt files using the NGAnalyser program. The
-#'  function supports either a single export file containing all tag IDs, or one
-#'  file per tag (both options within NGAnalyzer). Other user-generated files
-#'  should not be placed in this folder.
+#'  processing raw base station .rem files using the X Manager program. The function
+#'  currently relies on the 'Set Movebank Compatibility' button being selected
+#'  during processing - pressure in millibars, date and time in the same column,
+#'  date format dd/mm/yyy, time format 0-24. Other user-generated files should not
+#'  be placed in this folder.
 #' @param out.dir Filepath to the directory in which to save .csv files of the
 #'  Movebank-formatted position data, and TDR data if applicable.
 #' @param spcd Four-letter species code to use when generating the .csv filename
 #'  for the Movebank-formatted position data, and TDR data if applicable.
 #' @param site Colony name/abbreviation (no spaces) to use when generating the
 #'  .csv filename for the Movebank-formatted position data, and TDR data if applicable.
-#' @param deployLon Longitude of the deployment location, used to replace NA,NA
-#'  locations if the tag is programmed to stop collecting GPS fixes when in range of
-#'  the base station. Required if this setting was used.
-#' @param deployLat Longitude of the deployment location, used to replace NA,NA
-#'  locations if the tag is programmed to stop collecting GPS fixes when in range of
-#'  the base station. Required if this setting was used.
 #'
-#' @details This function is intended to compile and format Ecotone GPS-UHF tracking
+#' @details This function is intended to compile and format TechnoSmArt GPS and GPS-UHF tracking
 #'  data from multiple birds tracked from a single site. It processes the raw data
-#'  files (.csv file(s) produced from an Ecotone base station file (.txt) using the
-#'  NGAnalyzer program) into a single file for positional data and a single file for
+#'  files (.csv file(s) produced from TechnoSmArt base station file(s) (.rem) using the
+#'  X Manager program) into a single file for positional data and a single file for
 #'  time-depth data. Files are formatted to comply with Movebank's required field
 #'  names and units.
-#'
-#'  When missing locations (NA,NA) occur in range of the base station, this function
-#'  uses the deployment coordinates provided by the user ('deployLon', 'deployLat').
-#'  All other missing locations are labelled as outliers which hides them from the Movebank
-#'  map but retains them in the dataset.
 #'
 #'  Note: For users working with burrow nesting species, you may wish to perform
 #'  additional data processing to identify where missing locations likely represent
@@ -42,9 +32,9 @@
 #'  spcd, and site are specified, the function will save Movebank-formatted .csv file(s) to
 #'  the location specified.
 #' @export
-#' @importFrom utils read.csv read.table write.csv
+#' @importFrom utils read.csv read.table readr write.csv
 #' @importFrom dplyr across where everything
-formatTechnoSmartGPS <- function(data.dir, out.dir = NULL, spcd = NULL, site = NULL, deployLon = NULL, deployLat = NULL) {
+formatTechnoSmartGPS <- function(data.dir, out.dir = NULL, spcd = NULL, site = NULL) {
 
   ## Format positional data ##
 
@@ -52,64 +42,56 @@ formatTechnoSmartGPS <- function(data.dir, out.dir = NULL, spcd = NULL, site = N
 
   files <- list.files(path = data.dir, pattern = "*.csv", recursive = T)
 
-  dat <- do.call(rbind, lapply(paste0(data.dir, "/", files), read.csv, sep = ";")) |>
-    dplyr::distinct() |>
-    dplyr::mutate(across(where(is.character), ~ dplyr::na_if(., "")))
+  # Allow either ; or , separator with delim = NULL
 
-  print(paste('Loaded', length(files), 'data file(s) from', length(unique(dat$Logger.ID)), "tag(s)."))
+  dat <- do.call(rbind, lapply(paste0(data.dir, "/", files),
+                               readr::read_delim, delim = NULL, show_col_types = FALSE, guess_max = 10000)) |>
+    dplyr::distinct()
 
-  # If tag In.range has values and deployLon or deployLat were not provided (NULL), stop
+  # Fix tagIDs
+  # Remove invalid dates
+  # Fill voltage records, group in case first record of voltage is missing
 
-  if (!all(is.na(dat$In.range)) & (is.null(deployLon) | is.null(deployLat))) {
-    stop("Error: Must provide deployLon and deployLat when tag is programmed to turn off in range of the base station.")
-  }
+  dat <- dat |>
+    dplyr::mutate(TagID = sub(".*_(\\d+)-.*", "\\1", TagID)) |>  ## Likely needs work! see ard files
+    dplyr::filter(substr(Timestamp, 1, 10) != "01/01/0001") |>
+    dplyr::group_by(TagID) |>
+    tidyr::fill(`Battery (V)`, .direction = "down") |>
+    dplyr::ungroup()
+
+  print(paste('Loaded', length(files), 'data file(s) from', length(unique(dat$TagID)), "tag(s)."))
 
   # Make positional dataset (no dive data)
+  # No records for failed/skipped fixes (poor signal, accelerometry-based) - info in separate metadata file for TechnoSmart
+  # No off in range of base station setting
 
   pos <- dat |>
-    dplyr::filter(!is.na(Longitude) | !is.na(In.range) | !is.na(No.GPS...timeout) | !is.na(No.GPS...diving))
-
-  # Handle NA,NA locations
-  # If 'in-range' column has value, replace NA,NA location with deploy location
-  # Change remaining NA,NA positions to 0,0 and label ‘import-marked-outlier’ == TRUE.
-  # Use the 'comments' field to say what you did.
-
-  pos <- pos |>
-    dplyr::mutate(`import-marked-outlier` = ifelse(is.na(Longitude) & is.na(In.range), TRUE, FALSE),
-                  `comments` = ifelse(!is.na(No.GPS...timeout), "No GPS, timeout",
-                                      ifelse(!is.na(No.GPS...diving), "No GPS, diving",
-                                             ifelse(!is.na(In.range), "In range of base station; changed NA,NA to deployment coordinates", NA))),
-                  Longitude = ifelse(!is.na(Longitude), Longitude,
-                                     ifelse(!is.na(In.range), deployLon, 0)),
-                  Latitude = ifelse(!is.na(Latitude), Latitude,
-                                    ifelse(!is.na(In.range), deployLat, 0)))
+    dplyr::filter(!is.na(`location-lon`)) |>
+    dplyr::filter(substr(Timestamp, 1, 10) != "01/01/0001")
 
   # Rename columns and format for Movebank
   # Filter duplicates, sort
-  # Didn't keep Additive.Vincentys.Distance.Km., Travel.Speed.Km.h.
-  # Experimenting with keeping Temperature and PA
-  # (Temperature only occurs with coordinates, unlike Temp_sens, PA is Atmospheric and occurs with all lat/lon)
+
+  ## NEED to handle filling for voltage before splitting off lat/lon data. ##
 
   pos <- pos |>
     dplyr::mutate(`sensor-type` = "GPS",
-                  timestamp = paste(paste(Year, sprintf("%02d", Month), sprintf("%02d", Day), sep = "-"), paste(sprintf("%02d", Hour), sprintf("%02d", Minute), sprintf("%02d", Second), sep = ":")),
-                  `gps-fix-type-raw` = ifelse(!is.na(No.GPS...timeout) | !is.na(No.GPS...diving) | !is.na(In.range), "1D", #1D = no fix
-                                              ifelse(!is.na(Altitude), "3D", "2D")),
-                  `gps:satellite-count` = ifelse(!is.na(No.GPS...timeout), 0, Sat..Count),
-                  `gps-time-to-fix` = Searching.time,
-                  `ground-speed` = Speed/1.94384001, # m/s, Ecotone uses kts
-                  `location-lat` = Latitude,
-                  `location-long` = Longitude,
-                  `tag-voltage` = Voltage*1000, # mV not volts
-                  `tag-id` = Logger.ID,
-                  `external-temperature` = Temperature,
-                  `barometric-pressure` = PA) |>
+                  `gps-fix-type-raw` = ifelse(!is.na(`height-msl`), "3D", "2D"), # Technosmart reports skipped/missed fixes in separate metadata file
+                  `tag-id` = TagID,
+                  timestamp = Timestamp,
+                  #`location-lat` = `location-lat`,
+                  `location-long` = `location-lon`,
+                  `height-above-mean-sea-level` = `height-msl`, # meters,  is Technosmart m?
+                  `ground-speed` = `ground-speed`/3.6, # m/s, is Technosmart kph?
+                  `gps:satellite-count` = satellites,
+                  `gps-hdop` = hdop,
+                  `TechnoSmart-signal-quality` = `signal-strength`, # out of 500
+                  `tag-voltage` = `Battery (V)`*1000, # mV not volts
+                  ) |>
     dplyr::select('sensor-type', 'tag-id',
                   timestamp, 'location-long', 'location-lat',
-                  'gps-fix-type-raw', 'gps:satellite-count', 'gps-time-to-fix',
-                  'ground-speed', 'tag-voltage',
-                  'external-temperature', 'barometric-pressure',
-                  'import-marked-outlier', 'comments') |>
+                  'gps-fix-type-raw', 'gps:satellite-count', 'gps-hdop', 'TechnoSmart-signal-quality',
+                  'height-above-mean-sea-level', 'ground-speed', 'tag-voltage') |>
     dplyr::arrange(`tag-id`, timestamp) |>
     dplyr::distinct()
 
@@ -126,7 +108,7 @@ formatTechnoSmartGPS <- function(data.dir, out.dir = NULL, spcd = NULL, site = N
 
   # Occurs within same original file as the pos data
 
-  if(!all(is.na(dat$Depth)) | !all(is.na(dat$Div.down))){
+  if(!all(is.na(dat$pressure))){     ## Or would column be missing if no pressure collected?
 
     # Make TDR dataset
     # Rename columns and format for Movebank
@@ -175,8 +157,6 @@ formatTechnoSmartGPS <- function(data.dir, out.dir = NULL, spcd = NULL, site = N
       pos = pos,
       tdr = tdr
     )
-
-    return(out_list)
 
   } else {
 
