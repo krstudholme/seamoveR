@@ -1,12 +1,12 @@
-#' Prepare TechnoSmArt GPS-UHF(+TDR) data for import into Movebank (archival too?)
+#' Prepare TechnoSmArt GPS/GPS-UHF(+TDR) data for import into Movebank
 #'
 #' @param data.dir Filepath to the directory containing all TechnoSmArt data to be
 #'  re-formatted. Data must be in .csv format, the direct (unaltered) result of
-#'  processing raw base station .rem files using the X Manager program. The function
-#'  currently relies on the 'Set Movebank Compatibility' button being selected
-#'  during processing - pressure in millibars, date and time in the same column,
-#'  date format dd/mm/yyy, time format 0-24. Other user-generated files should not
-#'  be placed in this folder.
+#'  processing raw base station .rem or .ard files using the X Manager program.
+#'  Multiple files can exist for each tag. The function currently relies on the
+#'  'Set Movebank Compatibility' button being selected during processing - pressure
+#'  in millibars, date and time in the same column, date format dd/mm/yyyy, time
+#'  format 0-24. Other user-generated files should not be placed in this folder.
 #' @param out.dir Filepath to the directory in which to save .csv files of the
 #'  Movebank-formatted position data, and TDR data if applicable.
 #' @param spcd Four-letter species code to use when generating the .csv filename
@@ -16,24 +16,25 @@
 #'
 #' @details This function is intended to compile and format TechnoSmArt GPS and GPS-UHF tracking
 #'  data from multiple birds tracked from a single site. It processes the raw data
-#'  files (.csv file(s) produced from TechnoSmArt base station file(s) (.rem) using the
+#'  files (.csv file(s) produced from TechnoSmArt base station file(s) (.rem or .ard) using the
 #'  X Manager program) into a single file for positional data and a single file for
-#'  time-depth data. Files are formatted to comply with Movebank's required field
-#'  names and units.
+#'  temperature-depth data. Files are formatted to comply with Movebank's required field names and units.
 #'
 #'  Note: For users working with burrow nesting species, you may wish to perform
 #'  additional data processing to identify where missing locations likely represent
-#'  burrow use. If you do this, you would change 'location-lon' and 'location-lat'
-#'  to the deployment location, change the 'comments' field to a description of the
-#'  change you made and why, and change 'import-marked-outlier' to FALSE.
+#'  burrow use, utilizing the base station generated metadata files. If you do this,
+#'  you would change 'location-lon' and 'location-lat' to the deployment location,
+#'  change the 'comments' field to a description of the change you made and why, and
+#'  change 'import-marked-outlier' to FALSE.
 #'
 #' @return Returns an single object if only positional data are present, or a list
-#'  of two objects if both positional and time-depth data are present. If out.dir,
+#'  of two objects if both positional and temperature-depth data are present. If out.dir,
 #'  spcd, and site are specified, the function will save Movebank-formatted .csv file(s) to
 #'  the location specified.
 #' @export
-#' @importFrom utils read.csv read.table readr write.csv
+#' @importFrom utils read.csv read.table write.csv
 #' @importFrom dplyr across where everything
+#' @importFrom readr read_delim
 formatTechnoSmartGPS <- function(data.dir, out.dir = NULL, spcd = NULL, site = NULL) {
 
   ## Format positional data ##
@@ -50,11 +51,13 @@ formatTechnoSmartGPS <- function(data.dir, out.dir = NULL, spcd = NULL, site = N
 
   # Fix tagIDs
   # Remove invalid dates
+  # Fix datetime format
   # Fill voltage records, group in case first record of voltage is missing
 
   dat <- dat |>
-    dplyr::mutate(TagID = sub(".*_(\\d+)-.*", "\\1", TagID)) |>  ## Likely needs work! see ard files
     dplyr::filter(substr(Timestamp, 1, 10) != "01/01/0001") |>
+    dplyr::mutate(TagID = sub(".*_(\\d+)-.*", "\\1", TagID),     ## Likely needs work! see ard files
+                  Timestamp = as.character(as.POSIXct(Timestamp, format = "%d/%m/%Y %H:%M:%S", tz = "UTC"))) |>
     dplyr::group_by(TagID) |>
     tidyr::fill(`Battery (V)`, .direction = "down") |>
     dplyr::ungroup()
@@ -81,11 +84,11 @@ formatTechnoSmartGPS <- function(data.dir, out.dir = NULL, spcd = NULL, site = N
                   timestamp = Timestamp,
                   #`location-lat` = `location-lat`,
                   `location-long` = `location-lon`,
-                  `height-above-mean-sea-level` = `height-msl`, # meters,  is Technosmart m?
-                  `ground-speed` = `ground-speed`/3.6, # m/s, is Technosmart kph?
+                  `height-above-mean-sea-level` = `height-msl`, # meters
+                  `ground-speed` = `ground-speed`/3.6, # m/s, Technosmart in kph
                   `gps:satellite-count` = satellites,
                   `gps-hdop` = hdop,
-                  `TechnoSmart-signal-quality` = `signal-strength`, # out of 500
+                  `TechnoSmart-signal-quality` = `signal-strength`, # dB-Hz
                   `tag-voltage` = `Battery (V)`*1000, # mV not volts
                   ) |>
     dplyr::select('sensor-type', 'tag-id',
@@ -106,43 +109,45 @@ formatTechnoSmartGPS <- function(data.dir, out.dir = NULL, spcd = NULL, site = N
 
   ## Format TDR data if present ##
 
-  # Occurs within same original file as the pos data
+  # Occurs within same original file as the position data
+  # Column for Pressure or Depth may be absent
 
-  if(!all(is.na(dat$pressure))){     ## Or would column be missing if no pressure collected?
+  if(("Pressure" %in% names(dat) && !all(is.na(dat$Pressure))) || "Depth" %in% names(dat) && !all(is.na(dat$Depth))){
 
-    # Make TDR dataset
-    # Rename columns and format for Movebank
+    # Make basic TDR dataset, start formatting for Movebank
 
     tdr <- dat |>
-      dplyr::filter(dplyr::if_any(c(Div.up, Div.down, PH, Depth), ~ !is.na(.))) |>
-      dplyr::select(where(~ !all(is.na(.)))) |>
-      dplyr::mutate(`barometric-pressure` = ifelse(!is.na(PH), PH, PA), # hPa (mbar)
-                    comments = ifelse(!is.na(PH), "hydrostatic pressure",
-                                      ifelse(!is.na(PA), "atmospheric pressure", NA)),
-                    `dive-duration` = lubridate::period_to_seconds(lubridate::hms(Diving.duration)),
-                    depth = Depth/100, # meters, Ecotone in cm
-                    `sensor-type` = "TDR",
-                    timestamp = paste(paste(Year, sprintf("%02d", Month), sprintf("%02d", Day), sep = "-"), paste(sprintf("%02d", Hour), sprintf("%02d", Minute), sprintf("%02d", Second), sep = ":"))) |>
-      dplyr::rename(`external-temperature` = Temp_sens,
-                    `tag-id` = Logger.ID) |>
-      dplyr::select('sensor-type', 'tag-id', timestamp,
-                    'dive-duration', 'depth',
-                    'barometric-pressure', 'external-temperature',
-                    comments) |>
+      dplyr::filter(dplyr::if_any(c(Pressure, `Temp. (?C)`), ~ !is.na(.))) |> # remove row if all are NA, drops some Activity records, all Accel 0
+      dplyr::select(TagID, Timestamp, Activity, Pressure, `Temp. (?C)`) |>    ## Any point in keeping volatage here too?
+      dplyr::mutate(`sensor-type` = "TDR",
+                    `TechnoSmart-activity` = ifelse('Active' %in% Activity, 'active', 'inactive'),
+                    wet = ifelse('Wet' %in% Activity, TRUE, FALSE)) |>
+      dplyr::rename(`tag-id` = TagID,
+                    timestamp = Timestamp,
+                    `external-temperature` = `Temp. (?C)`) |>
       dplyr::arrange(`tag-id`, timestamp)
 
-    # Collapse rows with identical timestamps
+    # Fix Pressure column for Movebank, if present
 
-    tdr <- tdr |>
-      dplyr::group_by(`sensor-type`, `tag-id`, timestamp) |>
-      dplyr::summarise(across(everything(), ~ dplyr::first(na.omit(.))), .groups = "drop")
+    if("Pressure" %in% names(dat)){
+      tdr <- tdr |>
+        dplyr::rename(`barometric-pressure` = Pressure) |> # hPa (mbar)
+        dplyr::select('sensor-type', 'tag-id', timestamp,
+                      'barometric-pressure', 'external-temperature',
+                      'TechnoSmart-activity', wet)
+    }
+
+    # Fix Depth column for Movebank, if present
+
+    if("Depth" %in% names(dat)){
+      tdr <- tdr |>
+        dplyr::rename(depth = Depth) |> # meters
+        dplyr::select('sensor-type', 'tag-id', timestamp,
+                      depth, 'external-temperature',
+                      'TechnoSmart-activity', wet)
+    }
 
     print(paste("TDR data identified for", length(unique(tdr$`tag-id`)), "tag(s)."))
-
-    ## Get missing value warnings for dive-duration and depth in Movebank
-    ## Could remove the Div.Up records (as below) to resolve, lose temp and atmospheric pressure logged at Div.Up
-    tdr <- dplyr::filter(tdr, comments == "hydrostatic pressure") |>
-      dplyr::select(-comments)
 
     # Save .csv if required info is provided
 

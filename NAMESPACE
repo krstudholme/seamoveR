@@ -2,9 +2,11 @@
 
 export(formatEcotoneGPS)
 export(formatPathtrackGPS)
+export(formatTechnoSmartGPS)
 importFrom(dplyr,across)
 importFrom(dplyr,everything)
 importFrom(dplyr,where)
+importFrom(readr,read_delim)
 importFrom(utils,read.csv)
 importFrom(utils,read.table)
 importFrom(utils,write.csv)
