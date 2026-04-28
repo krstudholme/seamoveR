@@ -2,7 +2,7 @@
 
 export(formatEcotoneGPS)
 export(formatPathtrackGPS)
-export(formatTechnoSmartGPS)
+export(formatTechnosmartGPS)
 importFrom(dplyr,across)
 importFrom(dplyr,everything)
 importFrom(dplyr,where)
