@@ -13,6 +13,7 @@ Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.3.3
 Imports: 
     dplyr,
+    readr,
     stringr
 URL: https://github.com/krstudholme/seamoveR
 BugReports: https://github.com/krstudholme/seamoveR/issues
