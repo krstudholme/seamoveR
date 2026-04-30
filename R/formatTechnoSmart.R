@@ -34,7 +34,7 @@
 #' in a .txt file, while all temperature, depth, accelerometry, and tag voltage data are stored
 #' in a larger .csv file. If the accelerometry sampling rate is high, this file can
 #' be large and result in very slow processing. Setting fast.gps to TRUE processes
-#' only the gps data from the .txt file, with no tag voltage or tdr data. Defaults to FALSE.
+#' only the gps data from the .txt file, with no tag voltage or TDR data. Defaults to FALSE.
 #'
 #' @details This function is intended to compile and format TechnoSmArt GPS and GPS-UHF tracking
 #'  data from multiple birds tracked from a single site. It processes the raw data
@@ -53,6 +53,7 @@
 #'  of two objects if both positional and temperature-depth data are present. If out.dir,
 #'  spcd, and site are specified, the function will save Movebank-formatted .csv file(s) to
 #'  the location specified.
+#'
 #' @export
 #' @importFrom utils read.csv read.table write.csv
 #' @importFrom dplyr across where everything
@@ -341,7 +342,7 @@ formatTechnosmartGPS <- function(data.dir, default.names = TRUE, out.dir = NULL,
 
       }
 
-      print(paste('Formatted tdr data for', length(unique(tdr$`tag-id`)), "tag(s)."))
+      print(paste('Formatted TDR data for', length(unique(tdr$`tag-id`)), "tag(s)."))
 
       # Save pos and tdr as a list
 

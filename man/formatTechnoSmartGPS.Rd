@@ -55,7 +55,7 @@ TechnoSmArt tags store GPS data only (timestamp, location, altitude, speed, accu
 in a .txt file, while all temperature, depth, accelerometry, and tag voltage data are stored
 in a larger .csv file. If the accelerometry sampling rate is high, this file can
 be large and result in very slow processing. Setting fast.gps to TRUE processes
-only the gps data from the .txt file, with no tag voltage or tdr data. Defaults to FALSE.}
+only the gps data from the .txt file, with no tag voltage or TDR data. Defaults to FALSE.}
 }
 \value{
 Returns an single object if only positional data are present, or a list
