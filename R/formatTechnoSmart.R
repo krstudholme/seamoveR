@@ -69,7 +69,7 @@ formatTechnosmartGPS <- function(data.dir, default.names = TRUE, out.dir = NULL,
           "location-long",
           "height-above-mean-sea-level",
           "ground-speed",
-          "gps:satellite-count",
+          "gps-satellite-count",
           "gps-hdop",
           "TechnoSmart-signal-quality"
         ),
@@ -116,7 +116,7 @@ formatTechnosmartGPS <- function(data.dir, default.names = TRUE, out.dir = NULL,
                     `ground-speed` = `ground-speed`/3.6) |>  # m/s, Technosmart in kph
       dplyr::select('sensor-type', 'tag-id',
                     timestamp, 'location-long', 'location-lat',
-                    'gps-fix-type-raw', 'gps:satellite-count', 'gps-hdop', 'TechnoSmart-signal-quality',
+                    'gps-fix-type-raw', 'gps-satellite-count', 'gps-hdop', 'TechnoSmart-signal-quality',
                     'height-above-mean-sea-level', 'ground-speed') |>
       dplyr::arrange(`tag-id`, timestamp) |>
       dplyr::distinct()
@@ -135,7 +135,7 @@ formatTechnosmartGPS <- function(data.dir, default.names = TRUE, out.dir = NULL,
 
     ## Format both positional and TDR data from .csv (all data) ##
 
-    # Import and merge all '.csv' files, keep distinct, blanks to NA
+    # Import and merge all '.csv' files
 
     files <- list.files(path = data.dir, pattern = "*.csv", recursive = T)
 
@@ -196,14 +196,14 @@ formatTechnosmartGPS <- function(data.dir, default.names = TRUE, out.dir = NULL,
                     `location-long` = `location-lon`,
                     `height-above-mean-sea-level` = `height-msl`, # meters
                     `ground-speed` = `ground-speed`/3.6, # m/s, Technosmart in kph
-                    `gps:satellite-count` = satellites,
+                    `gps-satellite-count` = satellites,
                     `gps-hdop` = hdop,
                     `TechnoSmart-signal-quality` = `signal-strength`, # dB-Hz
                     `tag-voltage` = `Battery (V)`*1000, # mV not volts
       ) |>
       dplyr::select('sensor-type', 'tag-id',
                     timestamp, 'location-long', 'location-lat',
-                    'gps-fix-type-raw', 'gps:satellite-count', 'gps-hdop', 'TechnoSmart-signal-quality',
+                    'gps-fix-type-raw', 'gps-satellite-count', 'gps-hdop', 'TechnoSmart-signal-quality',
                     'height-above-mean-sea-level', 'ground-speed', 'tag-voltage') |>
       dplyr::arrange(`tag-id`, timestamp) |>
       dplyr::distinct()
@@ -216,6 +216,8 @@ formatTechnosmartGPS <- function(data.dir, default.names = TRUE, out.dir = NULL,
 
     }
 
+    print(paste('Formatted position data for', length(unique(pos$`tag-id`)), "tag(s)."))
+
 
     ## Format TDR data if present ##
 
@@ -224,43 +226,42 @@ formatTechnosmartGPS <- function(data.dir, default.names = TRUE, out.dir = NULL,
 
     if(("Pressure" %in% names(dat) && !all(is.na(dat$Pressure))) || "Depth" %in% names(dat) && !all(is.na(dat$Depth))){
 
-      # Make basic TDR dataset, start formatting for Movebank
-
-      tdr <- dat |>
-        dplyr::filter(dplyr::if_any(c(Pressure, `Temp. (?C)`), ~ !is.na(.))) |> # remove row if all are NA, drops some Activity records, all Accel 0
-        dplyr::select(TagID, Timestamp, Activity, Pressure, `Temp. (?C)`) |>    ## Any point in keeping volatage here too?
-        dplyr::mutate(`sensor-type` = "TDR",
-                      `TechnoSmart-activity` = ifelse('Active' %in% Activity, 'active', 'inactive'),
-                      wet = ifelse('Wet' %in% Activity, TRUE, FALSE)) |>
-        dplyr::rename(`tag-id` = TagID,
-                      timestamp = Timestamp,
-                      `external-temperature` = `Temp. (?C)`) |>
-        dplyr::arrange(`tag-id`, timestamp)
-
-      # Fix Pressure column for Movebank, if present
+      # Pressure option
 
       if("Pressure" %in% names(dat)){
-        tdr <- tdr |>
-          dplyr::rename(`barometric-pressure` = Pressure) |> # hPa (mbar)
+        tdr <- dat |>
+          dplyr::filter(dplyr::if_any(c(Pressure, `Temp. (?C)`), ~ !is.na(.))) |> # remove row if all are NA, drops some Activity records, all Accel 0
+          dplyr::select(`tag-id`, Timestamp, Activity, Pressure, `Temp. (?C)`) |>    ## Any point in keeping voltage here too?
+          dplyr::mutate(`sensor-type` = "TDR",
+                        `TechnoSmart-activity` = ifelse('Active' %in% Activity, 'active', 'inactive'),
+                        wet = ifelse('Wet' %in% Activity, TRUE, FALSE)) |>
+          dplyr::rename(timestamp = Timestamp,
+                        `barometric-pressure` = Pressure,  # hPa (mbar)
+                        `external-temperature` = `Temp. (?C)`) |>
           dplyr::select('sensor-type', 'tag-id', timestamp,
                         'barometric-pressure', 'external-temperature',
-                        'TechnoSmart-activity', wet)
+                        'TechnoSmart-activity', wet) |>
+          dplyr::arrange(`tag-id`, timestamp)
+
       }
 
-      # Fix Depth column for Movebank, if present
+      # Depth option (backup in case user does not use Movebank defaults in X Manager)
 
       if("Depth" %in% names(dat)){
-        tdr <- tdr |>
-          dplyr::rename(depth = Depth) |> # meters
+        tdr <- dat |>
+          dplyr::filter(dplyr::if_any(c(Depth, `Temp. (?C)`), ~ !is.na(.))) |> # remove row if all are NA, drops some Activity records, all Accel 0
+          dplyr::select(`tag-id`, Timestamp, Activity, Depth, `Temp. (?C)`) |>    ## Any point in keeping voltage here too?
+          dplyr::mutate(`sensor-type` = "TDR",
+                        `TechnoSmart-activity` = ifelse('Active' %in% Activity, 'active', 'inactive'),
+                        wet = ifelse('Wet' %in% Activity, TRUE, FALSE)) |>
+          dplyr::rename(timestamp = Timestamp,
+                        depth = Depth,  # meters
+                        `external-temperature` = `Temp. (?C)`) |>
           dplyr::select('sensor-type', 'tag-id', timestamp,
                         depth, 'external-temperature',
-                        'TechnoSmart-activity', wet)
-      }
+                        'TechnoSmart-activity', wet) |>
+          dplyr::arrange(`tag-id`, timestamp)
 
-      print(paste("TDR data identified for", length(unique(tdr$`tag-id`)), "tag(s)."))
-
-      if("depth" %in% names(tdr) & !("barometric-pressure" %in% names(tdr))){
-        print("Depth data present instead of pressure data. Consider exporting pressure data from X Manager for archiving on Movebank.")
       }
 
       # Save .csv if required info is provided
@@ -269,6 +270,11 @@ formatTechnosmartGPS <- function(data.dir, default.names = TRUE, out.dir = NULL,
 
         write.csv(tdr, paste0(out.dir, "/tdrData_", spcd, "_GPS_", site, ".csv"), row.names = F, na = '')
 
+      }
+
+      print(paste('Formatted tdr data for', length(unique(tdr$`tag-id`)), "tag(s)."))
+      if("depth" %in% names(tdr) & !("barometric-pressure" %in% names(tdr))){
+        print("Depth data present instead of pressure data. Consider exporting pressure data from X Manager instead for archiving on Movebank.")
       }
 
       # Save pos and tdr as a list
