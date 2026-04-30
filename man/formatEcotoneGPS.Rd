@@ -55,6 +55,8 @@ file (.txt) using the NGAnalyzer program) into a single file for positional data
 and a single file for  temperature-depth data. Files are formatted to comply with
 Movebank's required field names and units.
 
+Accelerometry data are not supported.
+
 When missing locations (NA,NA) occur in range of the base station, this function
 uses the deployment coordinates provided by the user ('deployLon', 'deployLat').
 All other missing locations are labelled as outliers which hides them from the Movebank

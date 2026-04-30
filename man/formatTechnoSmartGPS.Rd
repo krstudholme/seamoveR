@@ -73,6 +73,8 @@ files (.csv file(s) produced from TechnoSmArt base station file(s) (.dem or .ard
 X Manager program) into a single file for positional data and a single file for
 temperature-depth data. Files are formatted to comply with Movebank's required field names and units.
 
+Accelerometry data are not supported.
+
 Note: For users working with burrow nesting species, you may wish to perform
 additional data processing to identify where missing locations likely represent
 burrow use, utilizing the base station generated metadata files. If you do this,

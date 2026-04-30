@@ -18,6 +18,8 @@
 #'  a single file for positional data and a single file for temperature-depth data.
 #'  Files are formatted to comply with Movebank's required field names and units.
 #'
+#'  Accelerometry data are not supported.
+#'
 #'  All missing (0,0) locations are labelled as outliers. This hides them from the Movebank
 #'  map but retains them in the dataset.
 #'
