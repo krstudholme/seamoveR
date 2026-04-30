@@ -44,6 +44,7 @@
 #' @export
 #' @importFrom utils read.csv read.table write.csv
 #' @importFrom dplyr across where everything
+#' @importFrom lubridate period_to_seconds hms
 formatEcotoneGPS <- function(data.dir, out.dir = NULL, spcd = NULL, site = NULL, deployLon = NULL, deployLat = NULL) {
 
   ## Format positional data ##
