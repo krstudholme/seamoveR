@@ -18,7 +18,7 @@ formatEcotoneGPS(
 re-formatted. Data must be in .csv format, the direct (unaltered) result of
 processing raw base station .txt files using the NGAnalyser program. The
 function supports either a single export file containing all tag IDs, or one
-file per tag (both options within NGAnalyzer). Other user-generated files
+file per tag (both are options within NGAnalyzer). Other user-generated files
 should not be placed in this folder.}
 
 \item{out.dir}{Filepath to the directory in which to save .csv files of the
@@ -40,7 +40,7 @@ the base station. Required if this setting was used.}
 }
 \value{
 Returns an single object if only positional data are present, or a list
-of two objects if both positional and time-depth data are present. If out.dir,
+of two objects if both positional and temperature-depth data are present. If out.dir,
 spcd, and site are specified, the function will save Movebank-formatted .csv file(s) to
 the location specified.
 }
@@ -48,12 +48,14 @@ the location specified.
 Prepare Ecotone GPS-UHF(+TDR) data for import into Movebank
 }
 \details{
-This function is intended to compile and format Ecotone GPS-UHF tracking
-data from multiple birds tracked from a single site. It processes the raw data
-files (.csv file(s) produced from an Ecotone base station file (.txt) using the
-NGAnalyzer program) into a single file for positional data and a single file for
-time-depth data. Files are formatted to comply with Movebank's required field
-names and units.
+This function is intended to compile and format the files obtained from
+Ecotone GPS-UHF tracking devices from multiple birds tracked from a single site.
+It processes the raw data files (.csv file(s) produced from an Ecotone base station
+file (.txt) using the NGAnalyzer program) into a single file for positional data
+and a single file for  temperature-depth data. Files are formatted to comply with
+Movebank's required field names and units.
+
+Accelerometry data are not supported.
 
 When missing locations (NA,NA) occur in range of the base station, this function
 uses the deployment coordinates provided by the user ('deployLon', 'deployLat').

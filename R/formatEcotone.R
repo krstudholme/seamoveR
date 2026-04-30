@@ -4,7 +4,7 @@
 #'  re-formatted. Data must be in .csv format, the direct (unaltered) result of
 #'  processing raw base station .txt files using the NGAnalyser program. The
 #'  function supports either a single export file containing all tag IDs, or one
-#'  file per tag (both options within NGAnalyzer). Other user-generated files
+#'  file per tag (both are options within NGAnalyzer). Other user-generated files
 #'  should not be placed in this folder.
 #' @param out.dir Filepath to the directory in which to save .csv files of the
 #'  Movebank-formatted position data, and TDR data if applicable.
@@ -19,12 +19,14 @@
 #'  locations if the tag is programmed to stop collecting GPS fixes when in range of
 #'  the base station. Required if this setting was used.
 #'
-#' @details This function is intended to compile and format Ecotone GPS-UHF tracking
-#'  data from multiple birds tracked from a single site. It processes the raw data
-#'  files (.csv file(s) produced from an Ecotone base station file (.txt) using the
-#'  NGAnalyzer program) into a single file for positional data and a single file for
-#'  time-depth data. Files are formatted to comply with Movebank's required field
-#'  names and units.
+#' @details This function is intended to compile and format the files obtained from
+#' Ecotone GPS-UHF tracking devices from multiple birds tracked from a single site.
+#'  It processes the raw data files (.csv file(s) produced from an Ecotone base station
+#'  file (.txt) using the NGAnalyzer program) into a single file for positional data
+#'  and a single file for  temperature-depth data. Files are formatted to comply with
+#'  Movebank's required field names and units.
+#'
+#'  Accelerometry data are not supported.
 #'
 #'  When missing locations (NA,NA) occur in range of the base station, this function
 #'  uses the deployment coordinates provided by the user ('deployLon', 'deployLat').
@@ -38,15 +40,15 @@
 #'  change you made and why, and change 'import-marked-outlier' to FALSE.
 #'
 #' @return Returns an single object if only positional data are present, or a list
-#'  of two objects if both positional and time-depth data are present. If out.dir,
+#'  of two objects if both positional and temperature-depth data are present. If out.dir,
 #'  spcd, and site are specified, the function will save Movebank-formatted .csv file(s) to
 #'  the location specified.
+#'
 #' @export
 #' @importFrom utils read.csv read.table write.csv
 #' @importFrom dplyr across where everything
+#' @importFrom lubridate period_to_seconds hms
 formatEcotoneGPS <- function(data.dir, out.dir = NULL, spcd = NULL, site = NULL, deployLon = NULL, deployLat = NULL) {
-
-  ## Format positional data ##
 
   # Import and merge all '.csv' files, keep distinct, blanks to NA
 
@@ -64,7 +66,7 @@ formatEcotoneGPS <- function(data.dir, out.dir = NULL, spcd = NULL, site = NULL,
     stop("Error: Must provide deployLon and deployLat when tag is programmed to turn off in range of the base station.")
   }
 
-  # Make positional dataset (no dive data)
+  ## Format positional data (no dive data) ##
 
   pos <- dat |>
     dplyr::filter(!is.na(Longitude) | !is.na(In.range) | !is.na(No.GPS...timeout) | !is.na(No.GPS...diving))
@@ -87,15 +89,14 @@ formatEcotoneGPS <- function(data.dir, out.dir = NULL, spcd = NULL, site = NULL,
   # Rename columns and format for Movebank
   # Filter duplicates, sort
   # Didn't keep Additive.Vincentys.Distance.Km., Travel.Speed.Km.h.
-  # Experimenting with keeping Temperature and PA
-  # (Temperature only occurs with coordinates, unlike Temp_sens, PA is Atmospheric and occurs with all lat/lon)
+  # Note: Temperature only occurs with coordinates, unlike Temp_sens, PA is Atmospheric and occurs with all lat/lon
 
   pos <- pos |>
     dplyr::mutate(`sensor-type` = "GPS",
                   timestamp = paste(paste(Year, sprintf("%02d", Month), sprintf("%02d", Day), sep = "-"), paste(sprintf("%02d", Hour), sprintf("%02d", Minute), sprintf("%02d", Second), sep = ":")),
                   `gps-fix-type-raw` = ifelse(!is.na(No.GPS...timeout) | !is.na(No.GPS...diving) | !is.na(In.range), "1D", #1D = no fix
                                           ifelse(!is.na(Altitude), "3D", "2D")),
-                  `gps:satellite-count` = ifelse(!is.na(No.GPS...timeout), 0, Sat..Count),
+                  `gps-satellite-count` = ifelse(!is.na(No.GPS...timeout), 0, Sat..Count),
                   `gps-time-to-fix` = Searching.time,
                   `ground-speed` = Speed/1.94384001, # m/s, Ecotone uses kts
                   `location-lat` = Latitude,
@@ -106,12 +107,14 @@ formatEcotoneGPS <- function(data.dir, out.dir = NULL, spcd = NULL, site = NULL,
                   `barometric-pressure` = PA) |>
     dplyr::select('sensor-type', 'tag-id',
                   timestamp, 'location-long', 'location-lat',
-                  'gps-fix-type-raw', 'gps:satellite-count', 'gps-time-to-fix',
+                  'gps-fix-type-raw', 'gps-satellite-count', 'gps-time-to-fix',
                   'ground-speed', 'tag-voltage',
                   'external-temperature', 'barometric-pressure',
                   'import-marked-outlier', 'comments') |>
     dplyr::arrange(`tag-id`, timestamp) |>
     dplyr::distinct()
+
+  print(paste('Formatted position data for', length(unique(pos$`tag-id`)), "tag(s)."))
 
   # Save .csv if required info is provided
 
@@ -155,10 +158,11 @@ formatEcotoneGPS <- function(data.dir, out.dir = NULL, spcd = NULL, site = NULL,
       dplyr::group_by(`sensor-type`, `tag-id`, timestamp) |>
       dplyr::summarise(across(everything(), ~ dplyr::first(na.omit(.))), .groups = "drop")
 
-    print(paste("TDR data identified for", length(unique(tdr$`tag-id`)), "tag(s)."))
+    print(paste('Formatted TDR data for', length(unique(tdr$`tag-id`)), "tag(s)."))
 
-    ## Get missing value warnings for dive-duration and depth in Movebank
-    ## Could remove the Div.Up records (as below) to resolve, lose temp and atmospheric pressure logged at Div.Up
+    ## If uploaded to Movebank as above, get missing value warnings for dive-duration and depth
+    ## For now, chose to remove the Div.Up records (as below) to resolve
+    ## Causes loss of Div.Up records and associated temp and atmospheric pressure
     tdr <- dplyr::filter(tdr, comments == "hydrostatic pressure") |>
       dplyr::select(-comments)
 
