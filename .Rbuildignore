@@ -1,2 +1,5 @@
 ^seamoveR\.Rproj$
 ^\.Rproj\.user$
+^notes$
+^testdata
+^LICENSE\.md$
