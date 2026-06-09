@@ -9,8 +9,9 @@ formatEcotoneGPS(
   out.dir = NULL,
   spcd = NULL,
   site = NULL,
-  deployLon = NULL,
-  deployLat = NULL
+  inRangeCoord = TRUE,
+  baseLon = NULL,
+  baseLat = NULL
 )
 }
 \arguments{
@@ -30,13 +31,17 @@ for the Movebank-formatted position data, and TDR data if applicable.}
 \item{site}{Colony name/abbreviation (no spaces) to use when generating the
 .csv filename for the Movebank-formatted position data, and TDR data if applicable.}
 
-\item{deployLon}{Longitude of the deployment location, used to replace NA,NA
-locations if the tag is programmed to stop collecting GPS fixes when in range of
-the base station. Required if this setting was used.}
+\item{inRangeCoord}{Whether to replace NA,NA locations marked as in range of the
+base station with the base station coordinates (TRUE/FALSE, defaults to TRUE).
+Only one base station location supported. If the tag was not programmed to stop
+collecting GPS fixes when within range of the base station, this parameter is
+ignored and NA,NA coordinates are marked as outliers.}
 
-\item{deployLat}{Longitude of the deployment location, used to replace NA,NA
-locations if the tag is programmed to stop collecting GPS fixes when in range of
-the base station. Required if this setting was used.}
+\item{baseLon}{Longitude of the base station location, used to replace NA,NA
+locations in range of the base station if inRangeCoord = TRUE.}
+
+\item{baseLat}{Latitude of the base station location, used to replace NA,NA
+locations in range of the base station if inRangeCoord = TRUE.}
 }
 \value{
 Returns an single object if only positional data are present, or a list
@@ -55,10 +60,11 @@ NGAnalyzer program) into a single file for positional data and a single file for
 time-depth data. Files are formatted to comply with Movebank's required field
 names and units.
 
-When missing locations (NA,NA) occur in range of the base station, this function
-uses the deployment coordinates provided by the user ('deployLon', 'deployLat').
-All other missing locations are labelled as outliers which hides them from the Movebank
-map but retains them in the dataset.
+When missing locations (NA,NA) occur in range of the base station and 'inRangeCoord'
+is set to TRUE, this function replaces these coordinates with the base station
+coordinates provided by the user ('baseLon', 'baseLat'). All other missing locations
+are labelled as outliers which hides them from the Movebank map but retains them
+in the dataset.
 
 Note: For users working with burrow nesting species, you may wish to perform
 additional data processing to identify where missing locations likely represent
