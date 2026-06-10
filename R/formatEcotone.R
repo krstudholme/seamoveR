@@ -12,12 +12,15 @@
 #'  for the Movebank-formatted position data, and TDR data if applicable.
 #' @param site Colony name/abbreviation (no spaces) to use when generating the
 #'  .csv filename for the Movebank-formatted position data, and TDR data if applicable.
-#' @param deployLon Longitude of the deployment location, used to replace NA,NA
-#'  locations if the tag is programmed to stop collecting GPS fixes when in range of
-#'  the base station. Required if this setting was used.
-#' @param deployLat Longitude of the deployment location, used to replace NA,NA
-#'  locations if the tag is programmed to stop collecting GPS fixes when in range of
-#'  the base station. Required if this setting was used.
+#' @param inRangeCoord Whether to replace NA,NA locations marked as in range of the
+#'  base station with the base station coordinates (TRUE/FALSE, defaults to TRUE).
+#'  Only one base station location supported. If the tag was not programmed to stop
+#'  collecting GPS fixes when within range of the base station, this parameter is
+#'  ignored and NA,NA coordinates are marked as outliers.
+#' @param baseLon Longitude of the base station location, used to replace NA,NA
+#'  locations in range of the base station if inRangeCoord = TRUE.
+#' @param baseLat Latitude of the base station location, used to replace NA,NA
+#'  locations in range of the base station if inRangeCoord = TRUE.
 #'
 #' @details This function is intended to compile and format the files obtained from
 #' Ecotone GPS-UHF tracking devices from multiple birds tracked from a single site.
@@ -28,10 +31,11 @@
 #'
 #'  Accelerometry data are not supported.
 #'
-#'  When missing locations (NA,NA) occur in range of the base station, this function
-#'  uses the deployment coordinates provided by the user ('deployLon', 'deployLat').
-#'  All other missing locations are labelled as outliers which hides them from the Movebank
-#'  map but retains them in the dataset.
+#'  When missing locations (NA,NA) occur in range of the base station and 'inRangeCoord'
+#'  is set to TRUE, this function replaces these coordinates with the base station
+#'  coordinates provided by the user ('baseLon', 'baseLat'). All other missing locations
+#'  are labelled as outliers which hides them from the Movebank map but retains them
+#'  in the dataset.
 #'
 #'  Note: For users working with burrow nesting species, you may wish to perform
 #'  additional data processing to identify where missing locations likely represent
@@ -48,7 +52,10 @@
 #' @importFrom utils read.csv read.table write.csv
 #' @importFrom dplyr across where everything
 #' @importFrom lubridate period_to_seconds hms
-formatEcotoneGPS <- function(data.dir, out.dir = NULL, spcd = NULL, site = NULL, deployLon = NULL, deployLat = NULL) {
+formatEcotoneGPS <- function(data.dir, out.dir = NULL, spcd = NULL, site = NULL,
+                             inRangeCoord = TRUE, baseLon = NULL, baseLat = NULL) {
+
+  ## Format positional data ##
 
   # Import and merge all '.csv' files, keep distinct, blanks to NA
 
@@ -60,31 +67,49 @@ formatEcotoneGPS <- function(data.dir, out.dir = NULL, spcd = NULL, site = NULL,
 
   print(paste('Loaded', length(files), 'data file(s) from', length(unique(dat$Logger.ID)), "tag(s)."))
 
-  # If tag In.range has values and deployLon or deployLat were not provided (NULL), stop
-
-  if (!all(is.na(dat$In.range)) & (is.null(deployLon) | is.null(deployLat))) {
-    stop("Error: Must provide deployLon and deployLat when tag is programmed to turn off in range of the base station.")
-  }
-
-  ## Format positional data (no dive data) ##
+  # Make positional dataset (no dive data)
 
   pos <- dat |>
     dplyr::filter(!is.na(Longitude) | !is.na(In.range) | !is.na(No.GPS...timeout) | !is.na(No.GPS...diving))
 
-  # Handle NA,NA locations
-  # If 'in-range' column has value, replace NA,NA location with deploy location
-  # Change remaining NA,NA positions to 0,0 and label ‘import-marked-outlier’ == TRUE.
-  # Use the 'comments' field to say what you did.
+  # Handle NA,NA locations when inRangeCoord = TRUE and the inRange setting was used
 
-  pos <- pos |>
-    dplyr::mutate(`import-marked-outlier` = ifelse(is.na(Longitude) & is.na(In.range), TRUE, FALSE),
-                  `comments` = ifelse(!is.na(No.GPS...timeout), "No GPS, timeout",
-                                             ifelse(!is.na(No.GPS...diving), "No GPS, diving",
-                                                    ifelse(!is.na(In.range), "In range of base station; changed NA,NA to deployment coordinates", NA))),
-                  Longitude = ifelse(!is.na(Longitude), Longitude,
-                                     ifelse(!is.na(In.range), deployLon, 0)),
-                  Latitude = ifelse(!is.na(Latitude), Latitude,
-                                    ifelse(!is.na(In.range), deployLat, 0)))
+  if (isTRUE(inRangeCoord) & !all(is.na(dat$In.range))){
+
+    # If baseLon or baseLat were not provided (NULL), stop
+
+    if (is.null(baseLon) | is.null(baseLat)) {
+      stop("Error: Must provide baseLon and baseLat when using inRangeCoord == TRUE.")
+    }
+
+    # Where 'in-range' column has value, replace NA,NA location with deploy location
+    # Change remaining NA,NA positions to 0,0 and label ‘import-marked-outlier’ = TRUE.
+    # Use the 'comments' field to say what you did.
+
+    pos <- pos |>
+      dplyr::mutate(`import-marked-outlier` = ifelse(is.na(Longitude) & is.na(In.range), TRUE, FALSE),
+                    `comments` = ifelse(!is.na(No.GPS...timeout), "No GPS, timeout",
+                                        ifelse(!is.na(No.GPS...diving), "No GPS, diving",
+                                               ifelse(!is.na(In.range), "In range of base station; changed NA,NA to deployment coordinates", NA))),
+                    Longitude = ifelse(!is.na(Longitude), Longitude,
+                                       ifelse(!is.na(In.range), baseLon, 0)),
+                    Latitude = ifelse(!is.na(Latitude), Latitude,
+                                      ifelse(!is.na(In.range), baseLat, 0)))
+
+  } else {
+
+    # Handle NA,NA locations when inRangeCoord = FALSE OR when no inRange records exist
+    # NA,NA locations all stored as 0,0 coordinates, outlier = TRUE, with in-range comment where applicable
+
+    pos <- pos |>
+      dplyr::mutate(`import-marked-outlier` = ifelse(is.na(Longitude), TRUE, FALSE),
+                    `comments` = ifelse(!is.na(No.GPS...timeout), "No GPS, timeout",
+                                        ifelse(!is.na(No.GPS...diving), "No GPS, diving",
+                                               ifelse(!is.na(In.range), "In range of base station", NA))),
+                    Longitude = ifelse(!is.na(Longitude), Longitude, 0),
+                    Latitude = ifelse(!is.na(Latitude), Latitude, 0))
+
+  }
 
   # Rename columns and format for Movebank
   # Filter duplicates, sort
