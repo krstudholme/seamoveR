@@ -74,11 +74,11 @@ formatEcotoneGPS <- function(data.dir, out.dir = NULL, spcd = NULL, site = NULL,
 
   # Handle NA,NA locations when inRangeCoord = TRUE and the inRange setting was used
 
-  if (isTRUE(inRangeCoord) & all(!is.na(dat$In.range))){
+  if (isTRUE(inRangeCoord) & !all(is.na(dat$In.range))){
 
     # If baseLon or baseLat were not provided (NULL), stop
 
-    if (is.null(deployLon) | is.null(deployLat)) {
+    if (is.null(baseLon) | is.null(baseLat)) {
       stop("Error: Must provide baseLon and baseLat when using inRangeCoord == TRUE.")
     }
 
@@ -105,7 +105,7 @@ formatEcotoneGPS <- function(data.dir, out.dir = NULL, spcd = NULL, site = NULL,
       dplyr::mutate(`import-marked-outlier` = ifelse(is.na(Longitude), TRUE, FALSE),
                     `comments` = ifelse(!is.na(No.GPS...timeout), "No GPS, timeout",
                                         ifelse(!is.na(No.GPS...diving), "No GPS, diving",
-                                               ifelse(!is.na(In.range), "In range of base station; changed NA,NA to deployment coordinates", NA))),
+                                               ifelse(!is.na(In.range), "In range of base station", NA))),
                     Longitude = ifelse(!is.na(Longitude), Longitude, 0),
                     Latitude = ifelse(!is.na(Latitude), Latitude, 0))
 
