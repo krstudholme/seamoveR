@@ -5,7 +5,7 @@
 #' @export
 open_manual_gps <- function() {
   browseURL(
-    system.file("manuals", "ECCC Movebank User Manual - GPS, GSM, Satellite.pdf", package = "seamoveR")
+    system.file("manuals", "ECCC_Movebank_User_Manual_GPS.GSM.Satellite.pdf", package = "seamoveR")
   )
 }
 
@@ -16,7 +16,7 @@ open_manual_gps <- function() {
 #' @export
 open_attribute_dictionary_gps <- function() {
   browseURL(
-    system.file("manuals", "ECCC Movebank Attribute Dictionary - GPS, GSM, Satellite.pdf", package = "seamoveR")
+    system.file("manuals", "ECCC_Movebank_Attribute_Dictionary_GPS.GSM.Satellite.pdf", package = "seamoveR")
   )
 }
 
@@ -28,12 +28,12 @@ open_attribute_dictionary_gps <- function() {
 #' @export
 copy_metadata_template_gps <- function(path = ".") {
 
-  dest <- file.path(path, "metadata_template.xlsx")
+  dest <- file.path(path, "Movebank_Reference_Data_Template_GPS.GSM.Satellite.xlsx")
 
   file.copy(
     system.file(
       "templates",
-      "Movebank Reference Data Template - GPS, GSM, Satellite.xlsx",
+      "Movebank_Reference_Data_Template_GPS.GSM.Satellite.xlsx",
       package = "seamoveR"
     ),
     to = dest,
