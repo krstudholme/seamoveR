@@ -25,13 +25,13 @@ devtools::install_github("krstudholme/seamoveR")
 ```
 ## Resource materials
 
-The **ECCC Movebank Manual** includes step-by-step instructions for project creation and maintenance for GPS, GSM, and satellite tracking technology studies. It can be viewed with the following code:
+The **ECCC Movebank Manual** includes step-by-step instructions (with bookmarks) for project creation and maintenance for GPS, GSM, and satellite tracking technology studies. It can be viewed with the following code:
 
 ```r
 seamoveR::open_manual_gps()
 ```
 
-The **ECCC Movebank Attribute Dictionary** details required and optional fields for GPS, GSM, and satellite tracking technology studies. This document ensures that field names and units are standardized and compliant Movebank database requirements. It can be viewed with the following code:
+The **ECCC Movebank Attribute Dictionary** is organized by data type (with bookmarks) and details required and optional fields for GPS, GSM, and satellite tracking technology studies. This document ensures that field names and units are standardized and compliant Movebank database requirements. It can be viewed with the following code:
 
 ```r
 seamoveR::open_attribute_dictionary_gps()
