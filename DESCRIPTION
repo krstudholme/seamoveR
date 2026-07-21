@@ -1,6 +1,6 @@
 Package: seamoveR
 Title: Tools for Managing Waterbird Data on Movebank
-Version: 0.1.0
+Version: 0.2.0
 Authors@R: 
     person("Katharine", "Studholme", email = "katharine.studholme@ec.gc.ca", role = c("aut", "cre"))
     person("Allison", "Patterson", email = "allison.patterson@ec.gc.ca", role = c("aut", "cre"))
