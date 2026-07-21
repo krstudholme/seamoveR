@@ -1,4 +1,4 @@
-# seamoveR (development version)
+# seamoveR 0.2.0
 
 * Notify user on loading if version out of date
 * Print reminder on loading of functions to access reference materials
