@@ -185,7 +185,7 @@ formatTechnosmartGPS <- function(data.dir, default.names = TRUE, out.dir = NULL,
 
     dat <- dat |>
       dplyr::filter(substr(Timestamp, 1, 10) != "01/01/0001") |>
-      dplyr::mutate(Timestamp = format(as.POSIXct(Timestamp, format = "%d/%m/%Y %H:%M:%S", tz = "UTC"), "%Y-%m-%d %H:%M:%S")) |>
+      dplyr::mutate(Timestamp = format(as.POSIXct(Timestamp, format = "%d/%m/%Y %H:%M:%OS", tz = "UTC"), "%Y-%m-%d %H:%M:%OS3")) |>
       dplyr::group_by(`tag-id`) |>
       tidyr::fill(`Battery (V)`, .direction = "down") |>
       dplyr::ungroup()
@@ -324,7 +324,7 @@ formatTechnosmartGPS <- function(data.dir, default.names = TRUE, out.dir = NULL,
         dat <- dat |>
           dplyr::filter(substr(Timestamp, 1, 10) != "01/01/0001") |>
           dplyr::filter(dplyr::if_any(c(Depth, `Temp. (?C)`), ~ !is.na(.))) |> # remove row if all are NA, drops some Activity records, all Accel 0
-          dplyr::mutate(timestamp = format(as.POSIXct(Timestamp, format = "%d/%m/%Y %H:%M:%S", tz = "UTC"), "%Y-%m-%d %H:%M:%S")) |>
+          dplyr::mutate(timestamp = format(as.POSIXct(Timestamp, format = "%d/%m/%Y %H:%M:%OS", tz = "UTC"), "%Y-%m-%d %H:%M:%OS3")) |>
           dplyr::rename(depth = Depth) |>  # meters
           dplyr::select('tag-id', timestamp, depth) |>
           dplyr::arrange(`tag-id`, timestamp)

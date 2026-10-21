@@ -76,20 +76,19 @@ formatPathtrackGPS <- function(data.dir, out.dir = NULL, spcd = NULL, site = NUL
 
   rownames(pos) <- NULL
 
-  # Handle cases when all Pathtrack input files have only 14 columns (plus new tag column)
+  # Handle cases when all Pathtrack input files have different numbers of columns
 
-  if(ncol(pos)==15){
+  # Some RF tags (basestation download) have two additional processing parameters columns, not for customer analysis
+  # Starting in 2026, Pathtrack output has 15 columns due to the addition of tagID in V15
+  # The processing parameter and ID columns always occur after the 14 core columns we need - so we drop these.
 
-    pos$V15 <- NA
-    pos$V16 <- NA
-
-  }
+  pos <- pos[,1:15]
 
   # Pathtrack standard column names (not required, ease of use)
 
   colnames(pos) <- c("tag", "day", "month", "year", "hour", "minute", "second",
                     "secondOfDay", "satellites", "lat", "long", "altitude",
-                    "clockOffset", "accuracy", "battery", "procParam1", "procParam2")
+                    "clockOffset", "accuracy", "battery")
 
   # Rename columns and format for Movebank
   # Filter duplicates, sort
@@ -97,17 +96,17 @@ formatPathtrackGPS <- function(data.dir, out.dir = NULL, spcd = NULL, site = NUL
   pos <- pos |>
     dplyr::mutate(`sensor-type` = "GPS",
                   timestamp = paste(paste(year, sprintf("%02d", month), sprintf("%02d", day), sep = "-"), paste(sprintf("%02d", hour), sprintf("%02d", minute), sprintf("%02d", second), sep = ":")),
+                   `location-lat` = lat,
+                   `location-long` = long,
                    `gps-fix-type-raw` = ifelse(`location-long` == 0 & `location-lat` == 0, "1D", #1D = no fix
                                           ifelse(!is.na(altitude), "3D", "2D")),
                    `gps-satellite-count` = satellites,
                    `height-above-ellipsoid` = altitude, # meters
-                   `location-lat` = lat,
-                   `location-long` = long,
                    `tag-voltage` = battery*1000, # mV not volts
                    `tag-id` = tag) |>
     dplyr::select('sensor-type', 'tag-id',
                   timestamp, 'location-long', 'location-lat',
-                  'gps-fix-type', 'height-above-ellipsoid',
+                  'gps-fix-type-raw', 'height-above-ellipsoid',
                   'gps-satellite-count', 'tag-voltage') |>
     dplyr::distinct(`tag-id`, timestamp, .keep_all = T) |>
     dplyr::arrange(`tag-id`, timestamp)
@@ -133,14 +132,27 @@ formatPathtrackGPS <- function(data.dir, out.dir = NULL, spcd = NULL, site = NUL
 
   ## Format TDR data if present ##
 
+  # Pathtrack tag models can result in either Press.text files or PressureImmersionData.txt files
+
   # Create a table of the 'Press.txt' files and tag IDs
 
   files <- data.frame(filepath = list.files(path = data.dir, pattern = "*Press.txt", recursive = T)) |>
     dplyr::mutate(tag = stringr::str_extract(filepath, "(?<=Tag)[^/]+"))
 
+  # If no data, try making table of 'PressureImmersionData.txt' files and tagIDs
+
+  if(nrow(files)==0){
+
+    files <- data.frame(filepath = list.files(path = data.dir, pattern = "*PressureImmersionData.txt", recursive = T)) |>
+      dplyr::mutate(tag = stringr::str_extract(filepath, "(?<=Tag)[^/]+"))
+
+  }
+
+  # Read TDR data if present
+
   if(nrow(files)>0){
 
-    # Import raw files, add column for tag name
+    # Import raw files, allow ',' and ' ' separators, add column for tag name
 
     datalist <- list()
     nfile <- 0
@@ -149,8 +161,9 @@ formatPathtrackGPS <- function(data.dir, out.dir = NULL, spcd = NULL, site = NUL
 
       tag <- dplyr::filter(files, filepath == i)
 
-      tag.file <- read.table(paste(data.dir, as.character(tag$filepath), sep = "/"),
-                           header = F, skip = 5, sep = ",") |>
+      tag.file <- read.table(text = gsub(",", " ",
+                                         readLines(paste(data.dir, as.character(tag$filepath), sep = "/"))),
+                             header = F, skip = 5, sep = "") |>
         dplyr::mutate(tag = tag$tag[1]) |>
         dplyr::relocate(tag)
 
@@ -170,25 +183,58 @@ formatPathtrackGPS <- function(data.dir, out.dir = NULL, spcd = NULL, site = NUL
 
     rownames(tdr) <- NULL
 
-    # Pathtrack standard column names (not required, ease of use)
+    # Press.txt version
 
-    colnames(tdr) <- c("tag", "year", "month", "day", "hour", "minute", "second",
-                       "celcius", "pressurebar", "depth")
+    if(grepl("Press.txt", files$filepath[1])) {
 
-    # Rename columns and format for Movebank
-    # Filter duplicates, sort
+      # Pathtrack column names (not required, ease of use)
 
-    tdr <- tdr |>
-      dplyr::mutate(`sensor-type` = "TDR",
-                    timestamp = paste(paste(year, sprintf("%02d", month), sprintf("%02d", day), sep = "-"), paste(sprintf("%02d", hour), sprintf("%02d", minute), sprintf("%02d", second), sep = ":"))) |>
-      dplyr::rename(`barometric-pressure` = pressurebar, # hPa (mbar)
-                    #depth = depth, # meters
-                    `external-temperature` = celcius,
-                    `tag-id` = tag) |>
-      dplyr::select('sensor-type', 'tag-id', timestamp,
-                    'barometric-pressure', 'depth', 'external-temperature') |>
-      dplyr::distinct(`tag-id`, timestamp, .keep_all = T) |>
-      dplyr::arrange(`tag-id`, timestamp)
+      colnames(tdr) <- c("tag", "year", "month", "day", "hour", "minute", "second",
+                         "celcius", "pressurebar", "depth")
+
+      # Rename columns and format for Movebank
+      # Filter duplicates, sort
+
+      tdr <- tdr |>
+        dplyr::mutate(`sensor-type` = "TDR",
+                      timestamp = paste(paste(year, sprintf("%02d", month), sprintf("%02d", day), sep = "-"), paste(sprintf("%02d", hour), sprintf("%02d", minute), sprintf("%02d", second), sep = ":")),
+                      depth = -depth) |>  # meters, change to positive below surface
+        dplyr::rename(`barometric-pressure` = pressurebar, # hPa (mbar)
+                      `external-temperature` = celcius,
+                      `tag-id` = tag) |>
+        dplyr::select('sensor-type', 'tag-id', timestamp,
+                      'barometric-pressure', 'depth', 'external-temperature') |>
+        dplyr::distinct(`tag-id`, timestamp, .keep_all = T) |>
+        dplyr::arrange(`tag-id`, timestamp)
+
+    }
+
+    # PressureImmersionData.txt version
+
+    if(grepl("PressureImmersionData.txt", files$filepath[1])) {
+
+      # Pathtrack column names (not required, ease of use)
+
+      colnames(tdr) <- c("tag", "year", "month", "day", "hour", "minute", "second",
+                         "celcius", "pressurebar", "height", "wetdry")
+
+      # Rename columns and format for Movebank
+      # Filter duplicates, sort
+
+      tdr <- tdr |>
+        dplyr::mutate(`sensor-type` = "TDR",
+                      timestamp = paste(paste(year, sprintf("%02d", month), sprintf("%02d", day), sep = "-"), paste(sprintf("%02d", hour), sprintf("%02d", minute), sprintf("%02d", second), sep = ":")),
+                      wet = ifelse(wetdry == 1, TRUE, FALSE)) |>
+        dplyr::rename(`barometric-pressure` = pressurebar, # hPa (mbar)
+                      `barometric-height` = height, # or use depth? I think this column covers both depth and height?
+                      `external-temperature` = celcius,
+                      `tag-id` = tag) |>
+        dplyr::select('sensor-type', 'tag-id', timestamp,
+                      'barometric-pressure', 'barometric-height', 'external-temperature', wet) |>
+        dplyr::distinct(`tag-id`, timestamp, .keep_all = T) |>
+        dplyr::arrange(`tag-id`, timestamp)
+
+    }
 
     print(paste('Formatted TDR data for', length(unique(tdr$`tag-id`)), "tag(s)."))
 
