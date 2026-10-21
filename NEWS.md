@@ -1,3 +1,7 @@
+# seamoveR 0.2.1
+
+* Updates to user manual and attribute dictionary in `inst/manuals/` to reflect minor change in study naming format, clarify that 'required' or 'required if applicable' metadata fields should be included but left blank if data are missing, and other minor clarifications.
+
 # seamoveR 0.2.0
 
 * Notify user on loading if version out of date
