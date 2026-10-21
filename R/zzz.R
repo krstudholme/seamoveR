@@ -60,5 +60,5 @@ check_seamoveR_version <- function() {
       packageStartupMessage(msg)
 
     }
-  }, condition = function(e) invisible(NULL))
+  }, error = function(e) invisible(NULL))
 }
