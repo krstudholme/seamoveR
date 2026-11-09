@@ -20,8 +20,8 @@ Finally, Movebank includes a free, formal archiving service. They will work with
 You can install the most recent version of this package from GitHub with:
 
 ```r
-install.packages("devtools")
-devtools::install_github("krstudholme/seamoveR")
+install.packages("pak")
+pak::pak("krstudholme/seamoveR")
 ```
 ## Resource materials
 
